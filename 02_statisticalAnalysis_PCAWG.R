@@ -76,9 +76,21 @@ if (opt$statistics == "n") {
 # setwd("../")
 setwd("~/mountHD/noncoding")
 
-tumor_types <- c(
-  "PACA-CA"
-)
+tumor_types <- c("BLCA-US","BOCA-UK","BTCA-SG","CESC-US","CLLE-ES","CMDI-UK",
+    "DLBC-US","EOPC-DE","ESAD-UK","GACA-CN","GBM-US","HNSC-US","KICH-US","KIRC-US",
+    "KIRP-US","LAML-KR","LGG-US","LICA-FR","LIHC-US","LINC-JP","LIRI-JP","LUAD-US","LUSC-US",
+    "MALY-DE","MELA-AU","ORCA-IN","PBCA-DE","PRAD-CA","RECA-EU","SARC-US","SKCM-US","STAD-US",
+    "THCA-US","UCEC-US")
+
+tumor_types <- c(tumor_types, 
+                 c(
+                   #"BRCA.merged"
+                   "COADREAD.merged"
+                   ,"OV.merged"
+                   ,"PACA.merged"
+                   ,"PAEN.merged"
+                   # ,"PRAD.merged"
+                   ))
 
 segment_cutoffs <- c(20)
 
