@@ -15,42 +15,46 @@ suppressMessages({
   library(parallel)
 })
 
-setwd("~/mountHD/noncoding")
+setwd("~/mountHD/noncoding/")
 
 scratchMS <- "/home/ieo5099/mountHPC/scratch/MS/falfieri/PCAWG/"
 fixed_bin_length <- 1000000
 
-results_table_path <- "results/01_binLevel/"
+results_table_path <- "results/01_binLevel_noIntron/"
 
 columns <- read.table("/home/ieo5099/mountHPC/scratch/MS/falfieri/PCAWG/patient_per_tumortype.tsv",
                       skip = 1)
-tumor_types <- levels(factor(columns$V1))
-tumor_types <- as.data.frame(cbind(do.call(rbind, str_split(tumor_types, "-")), tumor_types))
+if(F){
+  tumor_types <- levels(factor(columns$V1))
+  tumor_types <- as.data.frame(cbind(do.call(rbind, str_split(tumor_types, "-")), tumor_types))
+  tumor_types <- tumor_types$tumor_types
+}
 
 # tumor_types <- c("BLCA-US","BOCA-UK","BRCA.merged","BTCA-SG","CESC-US","CLLE-ES","CMDI-UK",
-                 # "COADREAD.merged","DLBC-US","EOPC-DE","ESAD-UK","GACA-CN","GBM-US","HNSC-US","KICH-US","KIRC-US",
-                 # "KIRP-US","LAML-KR","LGG-US","LICA-FR","LIHC-US","LINC-JP","LIRI-JP","LUAD-US","LUSC-US",
-                 # "MALY-DE","MELA-AU","ORCA-IN","OV.merged","PACA.merged","PAEN.merged",
-                 # "PBCA-DE","PRAD-CA","PRAD.merged","RECA-EU","SARC-US","SKCM-US","STAD-US",
-                 # "THCA-US","UCEC-US")
-
+# "COADREAD.merged","DLBC-US","EOPC-DE","ESAD-UK","GACA-CN","GBM-US","HNSC-US","KICH-US","KIRC-US",
+# "KIRP-US","LAML-KR","LGG-US","LICA-FR","LIHC-US","LINC-JP","LIRI-JP","LUAD-US","LUSC-US",
+# "MALY-DE","MELA-AU","ORCA-IN","OV.merged","PACA.merged","PAEN.merged",
+# "PBCA-DE","PRAD-CA","PRAD.merged","RECA-EU","SARC-US","SKCM-US","STAD-US",
+# "THCA-US","UCEC-US")
+# 
 tumor_types <- paste0(c(
-                 "Breast",
+                 # "Breast",
                  "Colorectal",
                  "Brain",
                  "Kidney",
                  "Liver",
                  "Pancreas",
                  "Lung",
-                 "Prostate",
+                 # "Prostate",
                  "Ovary",
-                 "Skin"
+                 "Skin",
+                 "Blood"
                  ), ".merged")
-merged <- TRUE
+merged <- T
 
-condition <- "missense"
-
-mclapply(tumor_types, mc.cores = 10, function(tumor_type){
+mclapply(tumor_types, mc.cores = 9, function(tumor_type){
+# for(tumor_type in tumor_types){
+  print(tumor_type)
   if(merged){
     snv <- read.table(file = paste0(scratchMS,"snv.merged/",tumor_type,"_snv.tsv"))
     cna <- read.table(file = paste0(scratchMS,"cna.merged/",tumor_type,"_cna.tsv"))
@@ -58,12 +62,6 @@ mclapply(tumor_types, mc.cores = 10, function(tumor_type){
     snv <- read.table(file = paste0(scratchMS,"snv/",tumor_type,"_snv.tsv"))
     cna <- read.table(file = paste0(scratchMS,"cna/",tumor_type,"_cna.tsv"))
   }
-  
-  if(condition == "missense"){
-    snv <- snv[snv$consequence_type %in% names(table(snv$consequence_type)[str_detect(names(table(snv$consequence_type)), "missense")]),]
-  }
-  
-  cna_diplo <- cna[cna$total_cn == 2,]
   
   common_patients <- levels(factor(snv$ID))[levels(factor(snv$ID)) %in% levels(factor(cna$ID))]
   
@@ -75,7 +73,8 @@ mclapply(tumor_types, mc.cores = 10, function(tumor_type){
     apply(chr_arms[, 2:3] / 1000000, 2, as.integer)
   
   # Start loop for cancer type ----
-  for(chr in paste0("chr",1:22)){
+  # for(chr in paste0("chr",1:22)){
+  mclapply(paste0("chr", 1:22), mc.cores = 2, function(chr){
     
     # filter for chromosome 
     temp_cna <- cna[cna$chr == chr,]
@@ -232,35 +231,86 @@ mclapply(tumor_types, mc.cores = 10, function(tumor_type){
     start_bin <- 0
     mutations_raw <- NULL
     mutations_norm <- NULL
+    mutations_coding <- NULL
+    mutations_noncoding <- NULL
+    mutations_coding_norm <- NULL
+    mutations_noncoding_norm <- NULL
     n_patients <- NULL
     
     for (i in 1:n_bins) {
-      length(c(chr_bins_pt[chr_bins_pt[, i + 1] == 0,]$patient))
+      diploid_pt <- length(c(chr_bins_pt[chr_bins_pt[, i + 1] == 0,]$patient))
       mut <-
         temp_snv[temp_snv$ID %in% 
                    c(chr_bins_pt[chr_bins_pt[, i +1] == 0,]$patients),]
       mut <-
         mut[mut$from >= start_bin &
               mut$to < end,]
-      mut_a <- as.data.frame(table(mut$ID))        
+      
+      mut_coding <- nrow(mut[mut$consequence_type %in%
+                               names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                            "exon")]) |
+                               mut$consequence_type %in%
+                               names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                            "missense")]) |
+                               mut$consequence_type %in%
+                               names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                            "synonymous")]),])
+      mut_noncoding <- nrow(mut[mut$consequence_type  %in%
+                                  names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                               "intergenic")]) |
+                                  mut$consequence_type %in%
+                                  names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                               "intron")]) & !(mut$consequence_type %in%
+                                                                                                 names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                                                                              "exon")]) |
+                                                                                                 mut$consequence_type %in%
+                                                                                                 names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                                                                              "missense")]) |
+                                                                                                 mut$consequence_type %in%
+                                                                                                 names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                                                                              "synonymous")])),])
+
+      # mut_coding <- sum(!is.na(mut$transcript_affected))
+      # mut_noncoding <- sum(is.na(mut$transcript_affected))
+      
+      mut_a <- as.data.frame(table(mut$ID))
       
       if (dim(mut_a)[1] != 0) {
         colnames(mut_a) <- c("patient_id", "mutations_raw")
         x <- sum(mut_a$mutations_raw , na.rm = T)
         mutations_raw <- c(mutations_raw, x)
-        mutations_norm <- c(mutations_norm, x / length(common_patients))
+        mutations_norm <- c(mutations_norm, x / diploid_pt)
+        mutations_coding <- c(mutations_coding, mut_coding)
+        mutations_coding_norm <- c(mutations_coding_norm, mut_coding / diploid_pt)
+        mutations_noncoding <- c(mutations_noncoding, mut_noncoding)
+        mutations_noncoding_norm <- c(mutations_noncoding_norm, mut_noncoding / diploid_pt)
       } else{
         mutations_raw <- c(mutations_raw, 0)
         mutations_norm <- c(mutations_norm, 0)
+        mutations_coding <- c(mutations_coding, 0)
+        mutations_coding_norm <- c(mutations_coding_norm, 0)
+        mutations_noncoding <- c(mutations_noncoding, 0)
+        mutations_noncoding_norm <- c(mutations_noncoding_norm, 0)
+        
       }
-      n_patients <- c(n_patients, length(common_patients))
+      n_patients <- c(n_patients, diploid_pt)
       start_bin <- start_bin + length_bin
       end <- end + length_bin
     }
     
     bin_gene_mut <-
-      cbind(bin_gene, mutations_raw, mutations_norm, n_patients)
+      cbind(bin_gene, 
+            mutations_raw, 
+            mutations_norm, 
+            mutations_coding,
+            mutations_coding_norm,
+            mutations_noncoding,
+            mutations_noncoding_norm,
+            n_patients)
     bin_gene_mut <- as.data.frame(bin_gene_mut)
+    
+    bin_gene_mut$length_noncoding <- (bin_gene_mut$bin_end-bin_gene_mut$bin_start)-bin_gene_mut$length_coding
+    bin_gene_mut$length_noncoding <- ifelse(bin_gene_mut$length_noncoding < 0, 0, bin_gene_mut$length_noncoding)
     
     ## end of the 2nd loop: write chromosome table ----
     write.table(
@@ -271,10 +321,14 @@ mclapply(tumor_types, mc.cores = 10, function(tumor_type){
         chr,
         "_",
         as.integer(fixed_bin_length),
-        "BIN_table",
-        ifelse(condition == "", "", condition)
-        ,".txt"
+        "BIN_table.txt"
       )
     )
-  }
-})
+  })
+  # }
+  print(paste0("\n >>>> ", tumor_type, " DONE! \n"))
+}
+)
+
+rm(list=ls())
+gc(full=T)

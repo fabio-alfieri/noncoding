@@ -3,8 +3,8 @@ gc(full=T)
 
 ## produce SNV and CNA files from PCAWG ----
 library(parallel)
-library(dplyr)
 library(plyr)
+library(dplyr)
 
 pcawg.files <- list.files("~/Desktop_linux/mutation_compensation/data/clonal_analysis_PCAWG/")
 
@@ -110,7 +110,9 @@ write.table(snv_merged,
 # exception Liver
 snv_merged <- data.frame()
 cna_merged <- data.frame()
-for(i in c("LIRI-JP", "LIHC-US", "LINC-JP", "LICA-FR")){
+for(i in c("LIRI-JP", 
+           "LIHC-US",
+           "LINC-JP", "LICA-FR")){
   snv <- read.table(file = paste0(scratchMS,"snv/",i,"_snv.tsv"))
   cna <- read.table(file = paste0(scratchMS,"cna/",i,"_cna.tsv"))
   snv_merged <- rbind.fill(snv_merged, snv)
@@ -126,7 +128,8 @@ write.table(snv_merged,
 # exception Pancreas
 snv_merged <- data.frame()
 cna_merged <- data.frame()
-for(i in c("PACA-CA", "PACA-AU", "PAEN-AU", "PAEN-IT")){
+for(i in c("PACA-CA", "PACA-AU", "PAEN-AU", "PAEN-IT"
+           )){
   snv <- read.table(file = paste0(scratchMS,"snv/",i,"_snv.tsv"))
   cna <- read.table(file = paste0(scratchMS,"cna/",i,"_cna.tsv"))
   snv_merged <- rbind.fill(snv_merged, snv)
@@ -158,7 +161,9 @@ write.table(snv_merged,
 # exception Kidney
 snv_merged <- data.frame()
 cna_merged <- data.frame()
-for(i in c("RECA-EU", "KICH-US", "KIRC-US", "KIRP-US")){
+for(i in c("RECA-EU"
+           ,"KICH-US", "KIRC-US", "KIRP-US"
+           )){
   snv <- read.table(file = paste0(scratchMS,"snv/",i,"_snv.tsv"))
   cna <- read.table(file = paste0(scratchMS,"cna/",i,"_cna.tsv"))
   snv_merged <- rbind.fill(snv_merged, snv)
@@ -233,4 +238,21 @@ write.table(cna_merged,
             sep = "\t")
 write.table(snv_merged,
             file = paste0("/home/ieo5099/mountHPC/scratch/MS/falfieri/PCAWG/snv.merged/Lung.merged_snv.tsv"),
+            sep = "\t")
+
+
+# exception Blood
+snv_merged <- data.frame()
+cna_merged <- data.frame()
+for(i in c("MALY-DE", "CLLE-ES", "CMDI-UK", "LAML-KR", "DLBC-US")){
+  snv <- read.table(file = paste0(scratchMS,"snv/",i,"_snv.tsv"))
+  cna <- read.table(file = paste0(scratchMS,"cna/",i,"_cna.tsv"))
+  snv_merged <- rbind.fill(snv_merged, snv)
+  cna_merged <- rbind.fill(cna_merged, cna)
+}
+write.table(cna_merged,
+            file = paste0("/home/ieo5099/mountHPC/scratch/MS/falfieri/PCAWG/cna.merged/Blood.merged_cna.tsv"),
+            sep = "\t")
+write.table(snv_merged,
+            file = paste0("/home/ieo5099/mountHPC/scratch/MS/falfieri/PCAWG/snv.merged/Blood.merged_snv.tsv"),
             sep = "\t")

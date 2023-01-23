@@ -1,4 +1,3 @@
-
 # SEGMENT-LEVEL ANALYSIS
 #
 # This script produces as output mutation score and amplification frequency for
@@ -76,35 +75,37 @@ if (opt$statistics == "n") {
 # setwd("../")
 setwd("~/mountHD/noncoding")
 
-tumor_types <- c("BLCA-US","BOCA-UK","BTCA-SG","CESC-US","CLLE-ES","CMDI-UK",
-    "DLBC-US","EOPC-DE","ESAD-UK","GACA-CN","GBM-US","HNSC-US","KICH-US","KIRC-US",
-    "KIRP-US","LAML-KR","LGG-US","LICA-FR","LIHC-US","LINC-JP","LIRI-JP","LUAD-US","LUSC-US",
-    "MALY-DE","MELA-AU","ORCA-IN","PBCA-DE","PRAD-CA","RECA-EU","SARC-US","SKCM-US","STAD-US",
-    "THCA-US","UCEC-US")
+tumor_types <- paste0(c(
+  "Breast",
+  # "Colorectal",
+  "Brain",
+  "Kidney",
+  "Liver",
+  "Pancreas",
+  "Lung",
+  "Prostate",
+  "Ovary",
+  "Skin",
+  "Blood"
+), ".merged")
 
-tumor_types <- c(tumor_types, 
-                 c(
-                   #"BRCA.merged"
-                   "COADREAD.merged"
-                   ,"OV.merged"
-                   ,"PACA.merged"
-                   ,"PAEN.merged"
-                   # ,"PRAD.merged"
-                   ))
+normLEN <- T
 
-segment_cutoffs <- c(20)
-
-stringent_mutations <- F
-if(stringent_mutations){
-  segment_cutoffs_muts <- c( #2.5,
-    # 5,
-    10,
-    15,
-    20
-    # 30
-  )
-}else{
-  segment_cutoffs_muts <- 20
+if (F) {
+  columns <- read.table("/home/ieo5099/mountHPC/scratch/MS/falfieri/PCAWG/patient_per_tumortype.tsv",
+                      skip = 1)
+tumor_types <- levels(factor(columns$V1))
+tumor_types <- as.data.frame(cbind(do.call(rbind, str_split(tumor_types, "-")), tumor_types))
+tumor_types <- tumor_types$tumor_types
+tumor_types <- tumor_types[!(tumor_types %in% c("BLCA-US", "BRCA-US", "CESC-US",
+                                                "COAD-US", "DLBC-US", "GBM-US",
+                                                "HNSC-US", "KICH-US", "KIRC-US",
+                                                "KIRP-US", "LAML-KR", "LGG-US", 
+                                                "LIHC-US", "LUAD-US", "LUSC-US",
+                                                "OV-US", "PRAD-US", "READ-US",
+                                                "SARC-US", "SKCM-US", "STAD-US",
+                                                "THCA-US", "UCEC-US"
+                                                ))]
 }
 
 if (produce_tables) {
@@ -122,15 +123,6 @@ if (produce_tables) {
   # segmentation lengths (default is 36Mbp)
   segment_lengths <- c(36)
   
-  for(segment_cutoff_muts in segment_cutoffs_muts){
-    cat("\n > MUTATION segment_mean cutoff: ", segment_cutoff_muts)
-    
-    for(segment_cutoff in segment_cutoffs){
-      if(stringent_mutations){
-        cat("\n > COPY-NUMBER segment_mean cutoff: ", segment_cutoff, "\n")
-      }
-      cat("\n >> (1) analyis: produce correlations at different bin sizes \n")
-      
       ## >> 1st loop (optional): varying segment lengths << ----
       for (segment_length in segment_lengths) {
         # 36 was a choose as default (best) cutoff (Fig.1d)
@@ -144,22 +136,15 @@ if (produce_tables) {
           conditions <- c(
             "amplifications"
             ,"deletions"
+            ,"coding"
+            ,"noncoding"
           )
         }
         
-        if (segment_length == 1) {
-          # produce chromosome/arm level correlations
-          chr_arm <- "yes" # "" or "yes"
-        } else{
-          chr_arm <- ""
-        }
         
         ## >> 2nd loop: mutation/gene type conditions << ----
-        for (condition in conditions) {
               source_table_path <-
                 paste0("results/01_binLevel/")
-          
-          cat(" > correlation condition: ", condition, "\n")
           
           ## >> 3rd loop: CANCER TYPE << ----
           suppressMessages({
@@ -342,6 +327,7 @@ if (produce_tables) {
                   )
                 ), chr = 22)
               
+              
               # 3rd loop: add a new column ----
               # to create segments of desired segment_length and remove bins that do not contains genes
               add.col <- function(df) {
@@ -384,32 +370,68 @@ if (produce_tables) {
                 df2 <- data.frame()
                 chr <- as.numeric(df$chr[1])
                 for (i in levels(factor(df$resize))) {
-                  df <- df[!(df$gene_count <= 1 & df$length_perc <= 0.05), ]
+                  # df <- df[!(df$gene_count <= 1 & df$length_perc <= 0.05), ]
+                  
                   start <- df[df$resize == i, ]$bin_start[1]
                   end <-
                     df[df$resize == i, ]$bin_end[length(df[df$resize == i, ]$bin_start)]
                   gene_count <- sum(df[df$resize == i, ]$gene_count)
-                  length_coding <-
-                    sum(df[df$resize == i, ]$length_coding)
-                  length_perc <- mean(df[df$resize == i, ]$length_perc)
-                  cna_freq_ampl <-
-                    mean(df[df$resize == i, ]$cna_freq_ampl)
-                  cna_freq_del <- mean(df[df$resize == i, ]$cna_freq_del)
+                  
+                  length_coding <- sum(df[df$resize == i, ]$length_coding)
+                  length_noncoding <- sum(df[df$resize == i, ]$length_noncoding)
+                  
+                  cna_freq_ampl <- mean(df[df$resize == i, ]$cna_freq_ampl)
+                  cna_freq_del <-  mean(df[df$resize == i, ]$cna_freq_del)
+                  
                   mutations_raw <-
                     sum(as.numeric(df[df$resize == i, ]$mutations_raw))
+                  mutations_coding <-
+                    sum(as.numeric(df[df$resize == i, ]$mutations_coding))
+                  mutations_noncoding <-
+                    sum(as.numeric(df[df$resize == i, ]$mutations_noncoding))
+                  
                   gene_id <-
                     paste0(df[df$resize == i, ]$gene_id, collapse = "")
-                  if (mutations_raw == 0) {
-                    mutations_raw <- 0
-                  }
+                  
                   if (dim(df[df$resize == i, ])[1] == 0) {
                     next
                   }
-                  mutations_norm <-
+                  if (mutations_raw == 0) {
+                    mutations_raw <- 0.0001
+                    mutations_coding <- 0.0001
+                    mutations_noncoding <- 0.0001
+                    # mutations_normPT <- 0.0001
+                    # mutations_coding_normPT <- 0.0001
+                    # mutations_noncoding_normPT <- 0.0001
+                    # mutations_coding_normPT_normLEN <- 0.0001
+                    # mutations_noncoding_normPT_normLEN <- 0.0001
+                  }
+                  mutations_normPT <-
                     mean(
-                      as.numeric(df[df$resize == i, ]$mutations_norm) / as.numeric(df[df$resize == i, ]$length_coding),
+                      as.numeric(df[df$resize == i, ]$mutations_norm),
                       na.rm = T
                     )
+                  mutations_coding_normPT <-
+                    mean(
+                      as.numeric(df[df$resize == i, ]$mutations_coding_norm),
+                      na.rm = T
+                    )
+                  mutations_noncoding_normPT <-
+                    mean(
+                      as.numeric(df[df$resize == i, ]$mutations_noncoding_norm),
+                      na.rm = T
+                    )
+                  mutations_coding_normPT_normLEN <-
+                    mean(
+                      as.numeric(df[df$resize == i, ]$mutations_coding_norm) / (as.numeric(df[df$resize == i, ]$length_coding)+1),
+                      na.rm = T
+                    )
+                  mutations_noncoding_normPT_normLEN <-
+                    mean(
+                      as.numeric(df[df$resize == i, ]$mutations_noncoding_norm) / (as.numeric(df[df$resize == i, ]$length_noncoding)+1),
+                      na.rm = T
+                    )
+                  
                   # mutations are normalized according to Eq. 2
                   
                   df2 <- rbind.data.frame(
@@ -419,12 +441,19 @@ if (produce_tables) {
                       start,
                       end,
                       length_coding,
-                      length_perc,
+                      length_noncoding,
                       cna_freq_ampl,
                       cna_freq_del,
                       mutations_raw,
-                      mutations_norm,
+                      mutations_coding,
+                      mutations_noncoding,
+                      mutations_normPT,
+                      mutations_coding_normPT,
+                      mutations_noncoding_normPT,
+                      mutations_coding_normPT_normLEN,
+                      mutations_noncoding_normPT_normLEN,
                       gene_id,
+                      gene_count,
                       chr,
                       resize = i
                     ),
@@ -433,16 +462,23 @@ if (produce_tables) {
                 }
                 
                 colnames(df2) <- c(
-                  "gene_count",
+                  "ene_count",
                   "start",
                   "end",
                   "length_coding",
-                  "length_perc",
+                  "length_noncoding",
                   "cna_freq_ampl",
                   "cna_freq_del",
                   "mutations_raw",
-                  "mutations_norm",
+                  "mutations_coding",
+                  "mutations_noncoding",
+                  "mutations_normPT",
+                  "mutations_coding_normPT",
+                  "mutations_noncoding_normPT",
+                  "mutations_coding_normPT_normLEN",
+                  "mutations_noncoding_normPT_normLEN",
                   "gene_id",
+                  "gene_count",
                   "chr",
                   "resize"
                 )
@@ -499,16 +535,14 @@ if (produce_tables) {
                   chr22
                 )
               
-              tier[, c(1:9, 11:12)] <-
-                apply(tier[, c(1:9, 11:12)], 2, as.numeric)
+              tier[, c(1:15, 17:19)] <-
+                apply(tier[, c(1:15, 17:19)], 2, as.numeric)
               
               # output table of the analysis
               write_tsv(
                 tier,
                 file = paste0(
                   results_table_path,
-                  condition,
-                  "_",
                   tumor_type,
                   "_",
                   segment_length,
@@ -516,151 +550,187 @@ if (produce_tables) {
                 )
               )
               
-              # produce plots
-              if (condition != "deletions") {
-                x <- log10(tier[tier$mutations_raw != 0, ]$mutations_raw)
-                y <- tier[tier$mutations_norm != 0, ]$cna_freq_ampl
+              
+              if(normLEN){
+                if(F){
+                  corP_amplifications <- try(cor.test(log10(tier[tier$mutations_normPT != 0,]$mutations_normPT), 
+                                                      tier[tier$mutations_normPT != 0,]$cna_freq_ampl, method = "pearson"))
+                  corS_amplifications <- try(cor.test(log10(tier[tier$mutations_normPT != 0,]$mutations_normPT), 
+                                                      tier[tier$mutations_normPT != 0,]$cna_freq_ampl, method = "spearman"))
+                  
+                  corP_deletions <- try(cor.test(log10(tier[tier$mutations_normPT != 0,]$mutations_normPT), 
+                                                 tier[tier$mutations_normPT != 0,]$cna_freq_del, method = "pearson"))
+                  corS_deletions <- try(cor.test(log10(tier[tier$mutations_normPT != 0,]$mutations_normPT), 
+                                                 tier[tier$mutations_normPT != 0,]$cna_freq_del, method = "spearman"))
+                  
+                  corP_coding <- try(cor.test(log10(tier[tier$mutations_coding != 0,]$mutations_coding_normPT_normLEN), 
+                                              tier[tier$mutations_coding != 0,]$cna_freq_ampl, method = "pearson"))
+                  corS_coding <- try(cor.test(log10(tier[tier$mutations_coding != 0,]$mutations_coding_normPT_normLEN), 
+                                              tier[tier$mutations_coding != 0,]$cna_freq_ampl, method = "spearman"))
+                  
+                  corP_coding_deletions <- try(cor.test(log10(tier[tier$mutations_coding != 0,]$mutations_coding_normPT_normLEN), 
+                                                        tier[tier$mutations_coding != 0,]$cna_freq_del, method = "pearson"))
+                  corS_coding_deletions <- try(cor.test(log10(tier[tier$mutations_coding != 0,]$mutations_coding_normPT_normLEN), 
+                                                        tier[tier$mutations_coding != 0,]$cna_freq_del, method = "spearman"))
+                  
+                  corP_noncoding <- try(cor.test(log10(tier[tier$mutations_noncoding != 0,]$mutations_noncoding_normPT_normLEN), 
+                                                 tier[tier$mutations_noncoding != 0,]$cna_freq_ampl, method = "pearson"))
+                  corS_noncoding <- try(cor.test(log10(tier[tier$mutations_noncoding != 0,]$mutations_noncoding_normPT_normLEN), 
+                                                 tier[tier$mutations_noncoding != 0,]$cna_freq_ampl, method = "spearman"))
+                  
+                  corP_noncoding_deletions <- try(cor.test(log10(tier[tier$mutations_noncoding != 0,]$mutations_noncoding_normPT_normLEN), 
+                                                           tier[tier$mutations_noncoding != 0,]$cna_freq_del, method = "pearson"))
+                  corS_noncoding_deletions <- try(cor.test(log10(tier[tier$mutations_noncoding != 0,]$mutations_noncoding_normPT_normLEN), 
+                                                           tier[tier$mutations_noncoding != 0,]$cna_freq_del, method = "spearman"))
+                }
+                corP_amplifications <- try(cor.test(log10(tier$mutations_normPT), 
+                                                    tier$cna_freq_ampl, method = "pearson"))
+                corS_amplifications <- try(cor.test(log10(tier$mutations_normPT), 
+                                                    tier$cna_freq_ampl, method = "spearman"))
                 
-                corP <- try(cor.test(x, y, method = "pearson"))
-                corS <- try(cor.test(x, y, method = "spearman"))
+                corP_deletions <- try(cor.test(log10(tier$mutations_normPT), 
+                                               tier$cna_freq_del, method = "pearson"))
+                corS_deletions <- try(cor.test(log10(tier$mutations_normPT), 
+                                               tier$cna_freq_del, method = "spearman"))
                 
-                parameters <- rbind(
-                  parameters,
-                  c(
-                    tumor_type,
-                    segment_length,
-                    paste0(condition),
-                    corP$estimate,
-                    p.corP = corP$p.value,
-                    corS$estimate,
-                    p.corS = corS$p.value
-                  ),
-                  stringsAsFactors = FALSE
-                )
-                (
-                  p1 <- ggplot(tier[tier$mutations_norm != 0, ], aes(x = x, y = y)) +
-                    geom_point() +
-                    theme_classic() +
-                    geom_smooth(method = "lm", alpha = 0.15) +
-                    # geom_smooth(method = "gam", formula = y ~ s(x), alpha = 0.05, se = FALSE, size = 1, color = "black") +
-                    ggtitle(
-                      paste(tumor_type, "-", segment_length, "-", condition),
-                      subtitle = paste(
-                        "Pearson's R =",
-                        signif(corP$estimate, digits = 3),
-                        "\n",
-                        "p-value =",
-                        signif(corP$p.value, digits = 3),
-                        "\nSpearman's rho =",
-                        signif(corS$estimate, digits = 3),
-                        "\n",
-                        "p-value =",
-                        signif(corS$p.value, digits = 3)
-                      )
-                    ) +
-                    xlab("Log of diploid mutations") +
-                    ylab("Amplification frequency")
-                )
+                corP_coding <- try(cor.test(log10(tier$mutations_coding_normPT_normLEN), 
+                                            tier$cna_freq_ampl, method = "pearson"))
+                corS_coding <- try(cor.test(log10(tier$mutations_coding_normPT_normLEN), 
+                                            tier$cna_freq_ampl, method = "spearman"))
                 
-                system(
-                  paste0(
-                    "mkdir -p results/02_tumorCorrelations/",
-                    segment_length,
-                    "Mbp_",
-                    condition,
-                    "/"
-                  )
-                )
-                pdf(
-                  file = paste0(
-                    "results/02_tumorCorrelations/",
-                    segment_length,
-                    "Mbp_",
-                    condition,
-                    "/",
-                    tumor_type,
-                    "_",
-                    condition,
-                    ".pdf"
-                  )
-                )
-                print(p1)
-                dev.off()
+                corP_coding_deletions <- try(cor.test(log10(tier$mutations_coding_normPT_normLEN), 
+                                                      tier$cna_freq_del, method = "pearson"))
+                corS_coding_deletions <- try(cor.test(log10(tier$mutations_coding_normPT_normLEN), 
+                                                      tier$cna_freq_del, method = "spearman"))
+                
+                corP_noncoding <- try(cor.test(log10(tier$mutations_noncoding_normPT_normLEN), 
+                                               tier$cna_freq_ampl, method = "pearson"))
+                corS_noncoding <- try(cor.test(log10(tier$mutations_noncoding_normPT_normLEN), 
+                                               tier$cna_freq_ampl, method = "spearman"))
+                
+                corP_noncoding_deletions <- try(cor.test(log10(tier$mutations_noncoding_normPT_normLEN), 
+                                                         tier$cna_freq_del, method = "pearson"))
+                corS_noncoding_deletions <- try(cor.test(log10(tier$mutations_noncoding_normPT_normLEN), 
+                                                         tier$cna_freq_del, method = "spearman"))
+              }else{
+                if(F){
+                  corP_amplifications <- try(cor.test(log10(tier[tier$mutations_normPT != 0,]$mutations_normPT), 
+                                                      tier[tier$mutations_normPT != 0,]$cna_freq_ampl, method = "pearson"))
+                  corS_amplifications <- try(cor.test(log10(tier[tier$mutations_normPT != 0,]$mutations_normPT), 
+                                                      tier[tier$mutations_normPT != 0,]$cna_freq_ampl, method = "spearman"))
+                  
+                  corP_deletions <- try(cor.test(log10(tier[tier$mutations_normPT != 0,]$mutations_normPT), 
+                                                 tier[tier$mutations_normPT != 0,]$cna_freq_del, method = "pearson"))
+                  corS_deletions <- try(cor.test(log10(tier[tier$mutations_normPT != 0,]$mutations_normPT), 
+                                                 tier[tier$mutations_normPT != 0,]$cna_freq_del, method = "spearman"))
+                  
+                  corP_coding <- try(cor.test(log10(tier[tier$mutations_coding != 0,]$mutations_coding_normPT), 
+                                              tier[tier$mutations_coding != 0,]$cna_freq_ampl, method = "pearson"))
+                  corS_coding <- try(cor.test(log10(tier[tier$mutations_coding != 0,]$mutations_coding_normPT), 
+                                              tier[tier$mutations_coding != 0,]$cna_freq_ampl, method = "spearman"))
+                  
+                  corP_coding_deletions <- try(cor.test(log10(tier[tier$mutations_coding != 0,]$mutations_coding_normPT), 
+                                                        tier[tier$mutations_coding != 0,]$cna_freq_del, method = "pearson"))
+                  corS_coding_deletions <- try(cor.test(log10(tier[tier$mutations_coding != 0,]$mutations_coding_normPT), 
+                                                        tier[tier$mutations_coding != 0,]$cna_freq_del, method = "spearman"))
+                  
+                  corP_noncoding <- try(cor.test(log10(tier[tier$mutations_noncoding != 0,]$mutations_noncoding_normPT), 
+                                                 tier[tier$mutations_noncoding != 0,]$cna_freq_ampl, method = "pearson"))
+                  corS_noncoding <- try(cor.test(log10(tier[tier$mutations_noncoding != 0,]$mutations_noncoding_normPT), 
+                                                 tier[tier$mutations_noncoding != 0,]$cna_freq_ampl, method = "spearman"))
+                  
+                  corP_noncoding_deletions <- try(cor.test(log10(tier[tier$mutations_noncoding != 0,]$mutations_noncoding_normPT), 
+                                                           tier[tier$mutations_noncoding != 0,]$cna_freq_del, method = "pearson"))
+                  corS_noncoding_deletions <- try(cor.test(log10(tier[tier$mutations_noncoding != 0,]$mutations_noncoding_normPT), 
+                                                           tier[tier$mutations_noncoding != 0,]$cna_freq_del, method = "spearman"))
+                }
+                corP_amplifications <- try(cor.test(log10(tier$mutations_normPT), 
+                                                    tier$cna_freq_ampl, method = "pearson"))
+                corS_amplifications <- try(cor.test(log10(tier$mutations_normPT), 
+                                                    tier$cna_freq_ampl, method = "spearman"))
+                
+                corP_deletions <- try(cor.test(log10(tier$mutations_normPT), 
+                                               tier$cna_freq_del, method = "pearson"))
+                corS_deletions <- try(cor.test(log10(tier$mutations_normPT), 
+                                               tier$cna_freq_del, method = "spearman"))
+                
+                corP_coding <- try(cor.test(log10(tier$mutations_coding_normPT), 
+                                            tier$cna_freq_ampl, method = "pearson"))
+                corS_coding <- try(cor.test(log10(tier$mutations_coding_normPT), 
+                                            tier$cna_freq_ampl, method = "spearman"))
+                
+                corP_coding_deletions <- try(cor.test(log10(tier$mutations_coding_normPT), 
+                                                      tier$cna_freq_del, method = "pearson"))
+                corS_coding_deletions <- try(cor.test(log10(tier$mutations_coding_normPT), 
+                                                      tier$cna_freq_del, method = "spearman"))
+                
+                corP_noncoding <- try(cor.test(log10(tier$mutations_noncoding_normPT), 
+                                               tier$cna_freq_ampl, method = "pearson"))
+                corS_noncoding <- try(cor.test(log10(tier$mutations_noncoding_normPT), 
+                                               tier$cna_freq_ampl, method = "spearman"))
+                
+                corP_noncoding_deletions <- try(cor.test(log10(tier$mutations_noncoding_normPT), 
+                                                         tier$cna_freq_del, method = "pearson"))
+                corS_noncoding_deletions <- try(cor.test(log10(tier$mutations_noncoding_normPT), 
+                                                         tier$cna_freq_del, method = "spearman"))
               }
               
-              if (condition == "deletions") {
-                x <- log10(tier[tier$mutations_raw != 0, ]$mutations_raw)
-                y <- tier[tier$mutations_norm != 0, ]$cna_freq_del
-                
-                corP <- try(cor.test(x, y, method = "pearson"))
-                corS <- try(cor.test(x, y, method = "spearman"))
-                
-                parameters <- rbind(
-                  parameters,
-                  c(
-                    tumor_type,
-                    segment_length,
-                    paste0(condition),
-                    corP$estimate,
-                    p.corP = corP$p.value,
-                    corS$estimate,
-                    p.corS = corS$p.value
-                  ),
-                  stringsAsFactors = FALSE
-                )
-                (
-                  p1 <- ggplot(tier[tier$mutations_norm != 0, ], aes(x = x, y = y)) +
-                    geom_point() +
-                    theme_classic() +
-                    geom_smooth(method = "lm", alpha = 0.15) +
-                    # geom_smooth(method = "gam", formula = y ~ s(x), alpha = 0.05, se = FALSE, size = 1, color = "black") +
-                    ggtitle(
-                      paste(tumor_type, "-", segment_length, "-", condition),
-                      subtitle = paste(
-                        "Pearson's R =",
-                        signif(corP$estimate, digits = 3),
-                        "\n",
-                        "p-value =",
-                        signif(corP$p.value, digits = 3),
-                        "\nSpearman's rho =",
-                        signif(corS$estimate, digits = 3),
-                        "\n",
-                        "p-value =",
-                        signif(corS$p.value, digits = 3)
-                      )
-                    ) +
-                    xlab("Log of diploid mutations") +
-                    ylab("Deletion frequency")
-                )
-                
-                system(
-                  paste0(
-                    "mkdir -p results/02_tumorCorrelations/",
-                    segment_length,
-                    "Mbp_",
-                    condition,
-                    "/"
-                  )
-                )
-                pdf(
-                  file = paste0(
-                    "results/02_tumorCorrelations/",
-                    segment_length,
-                    "Mbp_",
-                    condition,
-                    "/",
-                    tumor_type,
-                    "_",
-                    condition,
-                    ".pdf"
-                  )
-                )
-                print(p1)
-                dev.off()
-              }
-            }
+              tryCatch({
+                parameters <- rbind(parameters,  rbind(c(
+                  tumor_type = tumor_type,
+                  segment_length = segment_length,
+                  condition = "amplifications",
+                  corP = corP_amplifications$estimate,
+                  p.corP = corP_amplifications$p.value,
+                  corS = corS_amplifications$estimate,
+                  p.corS = corS_amplifications$p.value
+                ),c(
+                  tumor_type = tumor_type,
+                  segment_length = segment_length,
+                  condition = "deletions",
+                  corP = corP_deletions$estimate,
+                  p.corP = corP_deletions$p.value,
+                  corS = corS_deletions$estimate,
+                  p.corS = corS_deletions$p.value
+                ),c(
+                  tumor_type = tumor_type,
+                  segment_length = segment_length,
+                  condition = "coding",
+                  corP = corP_coding$estimate,
+                  p.corP = corP_coding$p.value,
+                  corS = corS_coding$estimate,
+                  p.corS = corS_coding$p.value
+                ),c(
+                  tumor_type = tumor_type,
+                  segment_length = segment_length,
+                  condition = "coding_deletions",
+                  corP = corP_coding_deletions$estimate,
+                  p.corP = corP_coding_deletions$p.value,
+                  corS = corS_coding_deletions$estimate,
+                  p.corS = corS_coding_deletions$p.value
+                ),c(
+                  tumor_type = tumor_type,
+                  segment_length = segment_length,
+                  condition = "noncoding",
+                  corP = corP_noncoding$estimate,
+                  p.corP = corP_noncoding$p.value,
+                  corS = corS_noncoding$estimate,
+                  p.corS = corS_noncoding$p.value
+                ),c(
+                  tumor_type = tumor_type,
+                  segment_length = segment_length,
+                  condition = "noncoding_deletions",
+                  corP = corP_noncoding_deletions$estimate,
+                  p.corP = corP_noncoding_deletions$p.value,
+                  corS = corS_noncoding_deletions$estimate,
+                  p.corS = corS_noncoding_deletions$p.value
+                )))
+              })
+             
+              
+          }
           })
-        }
+        
       }
       
       colnames(parameters) <-
@@ -673,6 +743,4 @@ if (produce_tables) {
           "p.corS")
       parameters[, 4:7] <- apply(parameters[, 4:7], 2, as.numeric)
       
-    }
-  }
 }
