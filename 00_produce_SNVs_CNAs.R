@@ -74,6 +74,9 @@ tumor_types <- as.data.frame(cbind(do.call(rbind, str_split(tumor_types, "-")), 
 #               sep = "\t")
 # }
 
+library(data.table)
+library(plyr)
+
 # exception Breast
 snv_merged <- data.frame()
 cna_merged <- data.frame()
@@ -90,6 +93,7 @@ write.table(snv_merged,
             file = paste0("/home/ieo5099/mountHPC/scratch/MS/falfieri/PCAWG/snv.merged/Breast.merged_snv.tsv"),
             sep = "\t")
 
+hist(snv$VAF, breaks = 100)
 
 # exception Colorectal
 snv_merged <- data.frame()
@@ -161,8 +165,8 @@ write.table(snv_merged,
 # exception Kidney
 snv_merged <- data.frame()
 cna_merged <- data.frame()
-for(i in c("RECA-EU"
-           ,"KICH-US", "KIRC-US", "KIRP-US"
+for(i in c("RECA-EU",
+           "KICH-US", "KIRC-US", "KIRP-US"
            )){
   snv <- read.table(file = paste0(scratchMS,"snv/",i,"_snv.tsv"))
   cna <- read.table(file = paste0(scratchMS,"cna/",i,"_cna.tsv"))
@@ -175,6 +179,8 @@ write.table(cna_merged,
 write.table(snv_merged,
             file = paste0("/home/ieo5099/mountHPC/scratch/MS/falfieri/PCAWG/snv.merged/Kidney.merged_snv.tsv"),
             sep = "\t")
+
+hist(snv_merged$VAF, breaks = 100)
 
 # exception Prostate
 snv_merged <- data.frame()

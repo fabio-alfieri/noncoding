@@ -20,7 +20,8 @@ setwd("~/mountHD/noncoding/")
 scratchMS <- "/home/ieo5099/mountHPC/scratch/MS/falfieri/PCAWG/"
 fixed_bin_length <- 1000000
 
-results_table_path <- "results/01_binLevel_noIntron/"
+results_table_path <- "results/01_binLevel_VAF00/"
+system(paste("mkdir -p", results_table_path))
 
 columns <- read.table("/home/ieo5099/mountHPC/scratch/MS/falfieri/PCAWG/patient_per_tumortype.tsv",
                       skip = 1)
@@ -30,29 +31,27 @@ if(F){
   tumor_types <- tumor_types$tumor_types
 }
 
-# tumor_types <- c("BLCA-US","BOCA-UK","BRCA.merged","BTCA-SG","CESC-US","CLLE-ES","CMDI-UK",
-# "COADREAD.merged","DLBC-US","EOPC-DE","ESAD-UK","GACA-CN","GBM-US","HNSC-US","KICH-US","KIRC-US",
-# "KIRP-US","LAML-KR","LGG-US","LICA-FR","LIHC-US","LINC-JP","LIRI-JP","LUAD-US","LUSC-US",
-# "MALY-DE","MELA-AU","ORCA-IN","OV.merged","PACA.merged","PAEN.merged",
-# "PBCA-DE","PRAD-CA","PRAD.merged","RECA-EU","SARC-US","SKCM-US","STAD-US",
-# "THCA-US","UCEC-US")
+# tumor_types <- levels(factor(columns$V1))
+# tumor_types <- as.data.frame(cbind(do.call(rbind, str_split(tumor_types, "-")), tumor_types))
+# 
+# tumor_types <- tumor_types$tumor_types
 # 
 tumor_types <- paste0(c(
-                 # "Breast",
+                 "Breast",
                  "Colorectal",
                  "Brain",
                  "Kidney",
                  "Liver",
                  "Pancreas",
                  "Lung",
-                 # "Prostate",
+                 "Prostate",
                  "Ovary",
                  "Skin",
                  "Blood"
                  ), ".merged")
 merged <- T
 
-mclapply(tumor_types, mc.cores = 9, function(tumor_type){
+mclapply(tumor_types, mc.cores = 11, function(tumor_type){
 # for(tumor_type in tumor_types){
   print(tumor_type)
   if(merged){
@@ -62,6 +61,8 @@ mclapply(tumor_types, mc.cores = 9, function(tumor_type){
     snv <- read.table(file = paste0(scratchMS,"snv/",tumor_type,"_snv.tsv"))
     cna <- read.table(file = paste0(scratchMS,"cna/",tumor_type,"_cna.tsv"))
   }
+  
+  # snv <- snv[snv$VAF >= 0.15,]
   
   common_patients <- levels(factor(snv$ID))[levels(factor(snv$ID)) %in% levels(factor(cna$ID))]
   
@@ -74,7 +75,7 @@ mclapply(tumor_types, mc.cores = 9, function(tumor_type){
   
   # Start loop for cancer type ----
   # for(chr in paste0("chr",1:22)){
-  mclapply(paste0("chr", 1:22), mc.cores = 2, function(chr){
+  mclapply(paste0("chr", 1:22), mc.cores = 8, function(chr){
     
     # filter for chromosome 
     temp_cna <- cna[cna$chr == chr,]
@@ -92,6 +93,9 @@ mclapply(tumor_types, mc.cores = 9, function(tumor_type){
     start_bin <- NULL
     temp_cna_length <- NULL
     i <- 1
+    
+    temp_cna <- temp_cna[temp_cna$total_cn != 2,]
+    temp_cna <- temp_cna[!is.na(temp_cna$from),]
     
     # this function assign each CNA event to segments 
     whichbin <- function(data, end, i) {
@@ -231,10 +235,14 @@ mclapply(tumor_types, mc.cores = 9, function(tumor_type){
     start_bin <- 0
     mutations_raw <- NULL
     mutations_norm <- NULL
-    mutations_coding <- NULL
-    mutations_noncoding <- NULL
+    mutations_coding_wintron <- NULL
+    mutations_coding_wointron <- NULL
+    mutations_noncoding_intron <- NULL
+    mutations_noncoding_intergenic <- NULL
     mutations_coding_norm <- NULL
-    mutations_noncoding_norm <- NULL
+    mutations_coding_wointron_norm <- NULL
+    mutations_noncoding_intron_norm <- NULL
+    mutations_noncoding_intergenic_norm <- NULL
     n_patients <- NULL
     
     for (i in 1:n_bins) {
@@ -246,30 +254,52 @@ mclapply(tumor_types, mc.cores = 9, function(tumor_type){
         mut[mut$from >= start_bin &
               mut$to < end,]
       
-      mut_coding <- nrow(mut[mut$consequence_type %in%
+      mut_coding_wintron <- nrow(mut[mut$consequence_type %in%
                                names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
-                                                                            "exon")]) |
-                               mut$consequence_type %in%
+                                                                            "exon")]) | mut$consequence_type %in%
                                names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
-                                                                            "missense")]) |
-                               mut$consequence_type %in%
+                                                                            "missense")]) | mut$consequence_type %in%
                                names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
-                                                                            "synonymous")]),])
-      mut_noncoding <- nrow(mut[mut$consequence_type  %in%
-                                  names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
-                                                                               "intergenic")]) |
-                                  mut$consequence_type %in%
-                                  names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
-                                                                               "intron")]) & !(mut$consequence_type %in%
-                                                                                                 names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
-                                                                                                                                              "exon")]) |
-                                                                                                 mut$consequence_type %in%
-                                                                                                 names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
-                                                                                                                                              "missense")]) |
-                                                                                                 mut$consequence_type %in%
-                                                                                                 names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
-                                                                                                                                              "synonymous")])),])
-
+                                                                            "synonymous")]) | mut$consequence_type %in%
+                               names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                            "intron")]) &
+                               !(mut$consequence_type %in% names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                            "intergenic")])),])
+      mut_coding_wointron <- nrow(mut[mut$consequence_type %in%
+                                        names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                     "exon")]) | mut$consequence_type %in%
+                                        names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                     "missense")]) | mut$consequence_type %in%
+                                        names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                     "synonymous")]) &
+                                        !(mut$consequence_type %in% names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                       "intergenic")]) | mut$consequence_type %in%
+                                            names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                         "intron")])),])
+      mut_noncoding_intergenic <- nrow(mut[mut$consequence_type  %in%
+                                             names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                               "intergenic")]) & !(mut$consequence_type %in%
+                                         names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                      "intron")]) | mut$consequence_type %in%
+                                           names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                        "exon")]) | mut$consequence_type %in%
+                                         names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                      "missense")]) | mut$consequence_type %in%
+                                         names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                      "synonymous")])),])
+      
+      mut_noncoding_intron <- nrow(mut[mut$consequence_type  %in%
+                                             names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                          "intron")]) & !(mut$consequence_type %in%
+                                                 names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                              "intergenic")]) | mut$consequence_type %in%
+                                                   names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                                "exon")]) | mut$consequence_type %in%
+                                                 names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                              "missense")]) | mut$consequence_type %in%
+                                                 names(table(mut$consequence_type)[str_detect(names(table(mut$consequence_type)),
+                                                                                              "synonymous")])),])
+      
       # mut_coding <- sum(!is.na(mut$transcript_affected))
       # mut_noncoding <- sum(is.na(mut$transcript_affected))
       
@@ -280,18 +310,25 @@ mclapply(tumor_types, mc.cores = 9, function(tumor_type){
         x <- sum(mut_a$mutations_raw , na.rm = T)
         mutations_raw <- c(mutations_raw, x)
         mutations_norm <- c(mutations_norm, x / diploid_pt)
-        mutations_coding <- c(mutations_coding, mut_coding)
-        mutations_coding_norm <- c(mutations_coding_norm, mut_coding / diploid_pt)
-        mutations_noncoding <- c(mutations_noncoding, mut_noncoding)
-        mutations_noncoding_norm <- c(mutations_noncoding_norm, mut_noncoding / diploid_pt)
+        mutations_coding_wintron <- c(mutations_coding_wintron, mut_coding_wintron)
+        mutations_coding_norm <- c(mutations_coding_norm, mut_coding_wintron / diploid_pt)
+        mutations_coding_wointron <- c(mutations_coding_wointron, mut_coding_wointron)
+        mutations_noncoding_intron <- c(mutations_noncoding_intron, mut_noncoding_intron)
+        mutations_noncoding_intergenic <- c(mutations_noncoding_intergenic, mut_noncoding_intergenic)
+        mutations_coding_wointron_norm <- c(mutations_coding_wointron_norm, mut_coding_wointron / diploid_pt)
+        mutations_noncoding_intron_norm <- c(mutations_noncoding_intron_norm, mut_noncoding_intron / diploid_pt)
+        mutations_noncoding_intergenic_norm <- c(mutations_noncoding_intergenic_norm, mut_noncoding_intergenic / diploid_pt)
       } else{
         mutations_raw <- c(mutations_raw, 0)
         mutations_norm <- c(mutations_norm, 0)
-        mutations_coding <- c(mutations_coding, 0)
+        mutations_coding_wintron <- c(mutations_coding_wintron, 0)
         mutations_coding_norm <- c(mutations_coding_norm, 0)
-        mutations_noncoding <- c(mutations_noncoding, 0)
-        mutations_noncoding_norm <- c(mutations_noncoding_norm, 0)
-        
+        mutations_coding_wointron <- c(mutations_coding_wointron, 0)
+        mutations_coding_wointron_norm <- c(mutations_coding_wointron_norm, 0)
+        mutations_noncoding_intron <- c(mutations_noncoding_intron, 0)
+        mutations_noncoding_intron_norm <- c(mutations_noncoding_intron_norm, 0)
+        mutations_noncoding_intergenic <- c(mutations_noncoding_intergenic, 0)
+        mutations_noncoding_intergenic_norm <- c(mutations_noncoding_intergenic_norm, 0)
       }
       n_patients <- c(n_patients, diploid_pt)
       start_bin <- start_bin + length_bin
@@ -302,15 +339,20 @@ mclapply(tumor_types, mc.cores = 9, function(tumor_type){
       cbind(bin_gene, 
             mutations_raw, 
             mutations_norm, 
-            mutations_coding,
+            mutations_coding_wintron,
             mutations_coding_norm,
-            mutations_noncoding,
-            mutations_noncoding_norm,
+            mutations_coding_wointron,
+            mutations_coding_wointron_norm,
+            mutations_noncoding_intron,
+            mutations_noncoding_intron_norm,
+            mutations_noncoding_intergenic,
+            mutations_noncoding_intergenic_norm,
             n_patients)
     bin_gene_mut <- as.data.frame(bin_gene_mut)
     
     bin_gene_mut$length_noncoding <- (bin_gene_mut$bin_end-bin_gene_mut$bin_start)-bin_gene_mut$length_coding
-    bin_gene_mut$length_noncoding <- ifelse(bin_gene_mut$length_noncoding < 0, 0, bin_gene_mut$length_noncoding)
+    bin_gene_mut$length_noncoding <- ifelse(bin_gene_mut$length_noncoding <= 0, 1, bin_gene_mut$length_noncoding)
+    bin_gene_mut$length_coding <- ifelse(bin_gene_mut$length_coding <= 0, 1, bin_gene_mut$length_coding)
     
     ## end of the 2nd loop: write chromosome table ----
     write.table(
